@@ -1,3 +1,5 @@
+import "./daily-loader.js";
+
 const writingInput = document.getElementById("writingInput");
 const coachBox = document.getElementById("coachResult");
 
