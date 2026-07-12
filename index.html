@@ -133,7 +133,7 @@
     </section>
   </main>
 
-  <footer><p>매일, 한국어 — 개인 몰입 아카이브</p><p>데이터는 현재 이 브라우저에 저장됩니다.</p></footer>
+  <footer><p>매일, 한국어 — 개인 몰입 아카이브</p><p>로그인하면 기록이 클라우드에 동기화됩니다.</p></footer>
 
   <dialog id="entryDialog"><button id="closeDialog" class="dialog-close" aria-label="닫기">×</button><div id="dialogContent"></div></dialog>
   <dialog id="authDialog">
@@ -144,7 +144,7 @@
       <label for="authEmail">이메일</label>
       <input id="authEmail" type="email" autocomplete="email" placeholder="name@example.com" />
       <label for="authPassword">비밀번호</label>
-      <input id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="6자 이상" />
+      <input id="authPassword" type="password" autocomplete="current-password" minlength="8" placeholder="8자 이상" />
       <div class="hero-actions">
         <button id="signInButton" class="button primary" type="button">로그인</button>
         <button id="signUpButton" class="button ghost" type="button">계정 만들기</button>
@@ -155,5 +155,6 @@
   </dialog>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <script type="module" src="app.js"></script>
+  <script type="module" src="auth-enhancements.js"></script>
 </body>
 </html>
