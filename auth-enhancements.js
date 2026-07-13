@@ -1,7 +1,13 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.57.4/+esm";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from "./config.js";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+const configResponse = await fetch("/api/public-config", { cache: "no-store" });
+const publicConfig = await configResponse.json();
+
+if (!configResponse.ok) {
+  throw new Error(publicConfig?.error || "Supabase public config could not be loaded");
+}
+
+const supabase = createClient(publicConfig.supabaseUrl, publicConfig.supabasePublishableKey);
 const STORAGE_KEY = "maeil-korean-v2";
 const authDialog = document.getElementById("authDialog");
 const authEmail = document.getElementById("authEmail");
