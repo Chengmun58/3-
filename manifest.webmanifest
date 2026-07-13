@@ -1,0 +1,13 @@
+{
+  "name": "매일, 한국어",
+  "short_name": "매일한국어",
+  "description": "개인 한국어 몰입 학습 아카이브",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#f4f1ea",
+  "lang": "ko",
+  "icons": [
+    {"src":"/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
