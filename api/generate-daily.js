@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
+const SUPABASE_URL = "https://sddqosczvaxebvcxcoih.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_RXncBCZYmi_9TQgfFc-iAA_Ipnpq_99";
+
 const SYSTEM_PROMPT = `한국어 원어민 수준의 몰입형 일일 학습 콘텐츠를 JSON으로 생성하세요. 실제 한국 사회·문화·여행·언어 자료를 바탕으로 하되 원문을 복사하지 말고 학습용으로 새롭게 작성하세요. 출력 필드: title, theme, reading, expressions, mz_expressions, speaking_task, writing_task, review_task, difficulty, source_urls. expressions와 mz_expressions는 [{"expression":"","meaning":"","example":""}] 형식입니다.`;
 
 function extractText(data) {
@@ -21,14 +24,11 @@ export default async function handler(req, res) {
   }
 
   const openaiKey = process.env.OPENAI_API_KEY;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const supabaseUrl = process.env.SUPABASE_URL;
-
-  if (!openaiKey || !serviceKey || !supabaseUrl) {
-    return res.status(500).json({ error: "필수 서버 환경 변수가 없습니다." });
+  if (!openaiKey) {
+    return res.status(500).json({ error: "OPENAI_API_KEY가 없습니다." });
   }
 
-  const supabase = createClient(supabaseUrl, serviceKey, {
+  const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
 
@@ -92,7 +92,6 @@ export default async function handler(req, res) {
     }
 
     const row = {
-      lesson_date: date,
       title: lesson.title,
       theme: lesson.theme,
       reading: lesson.reading,
@@ -102,15 +101,11 @@ export default async function handler(req, res) {
       writing_task: lesson.writing_task,
       review_task: lesson.review_task,
       difficulty: lesson.difficulty || "intermediate",
-      source_urls: lesson.source_urls || (sources || []).map((item) => item.url),
-      status: "published",
-      generated_by: "openai"
+      source_urls: lesson.source_urls || (sources || []).map((item) => item.url)
     };
 
     const { data: inserted, error: insertError } = await supabase
-      .from("daily_lessons")
-      .insert(row)
-      .select("lesson_date,title")
+      .rpc("insert_daily_lesson", { payload: row })
       .single();
 
     if (insertError) throw insertError;
