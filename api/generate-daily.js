@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://sddqosczvaxebvcxcoih.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_RXncBCZYmi_9TQgfFc-iAA_Ipnpq_99";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
 
 const SYSTEM_PROMPT = `한국어 원어민 수준의 몰입형 일일 학습 콘텐츠를 JSON으로 생성하세요. 실제 한국 사회·문화·여행·언어 자료를 바탕으로 하되 원문을 복사하지 말고 학습용으로 새롭게 작성하세요. 출력 필드: title, theme, reading, expressions, mz_expressions, speaking_task, writing_task, review_task, difficulty, source_urls. expressions와 mz_expressions는 [{"expression":"","meaning":"","example":""}] 형식입니다.`;
 
@@ -70,6 +70,10 @@ async function generateWithOpenAI(prompt) {
 export default async function handler(req, res) {
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "GET 또는 POST만 지원합니다." });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    return res.status(500).json({ error: "Supabase 환경 변수가 필요합니다." });
   }
 
   if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
