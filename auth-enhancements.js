@@ -44,6 +44,20 @@ function validate(email, password, requireStrong = false) {
   return "";
 }
 
+function prepareAuthDialog() {
+  document.querySelectorAll(".utility-dock.open, .floating-learning-tools.open").forEach((node) => node.classList.remove("open"));
+  authEmail.disabled = false;
+  authEmail.readOnly = false;
+  authPassword.disabled = false;
+  authPassword.readOnly = false;
+  authEmail.style.pointerEvents = "auto";
+  authPassword.style.pointerEvents = "auto";
+  signInButton.style.pointerEvents = "auto";
+  signUpButton.style.pointerEvents = "auto";
+  document.documentElement.classList.add("auth-dialog-open");
+  window.setTimeout(() => authEmail.focus({ preventScroll: true }), 80);
+}
+
 function buildEnhancements() {
   const title = authDialog.querySelector(".dialog-title");
   title.textContent = "계정으로 기록 동기화";
@@ -81,6 +95,7 @@ function buildEnhancements() {
     passwordHint.hidden = mode !== "signup";
     document.getElementById("resetPasswordButton").hidden = mode !== "signin";
     setMessage(mode === "signin" ? "계정에 로그인해 주세요." : "가입 후 인증 메일을 확인해 주세요.");
+    authEmail.focus({ preventScroll: true });
   });
 
   document.getElementById("resetPasswordButton").addEventListener("click", resetPassword);
@@ -97,11 +112,14 @@ async function signIn(event) {
   if (problem) return setMessage(problem, "error");
   signInButton.disabled = true;
   setMessage("로그인 중…");
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  signInButton.disabled = false;
-  if (error) return setMessage(translateError(error), "error");
-  setMessage("로그인했습니다.", "success");
-  setTimeout(() => authDialog.close(), 450);
+  try {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return setMessage(translateError(error), "error");
+    setMessage("로그인했습니다.", "success");
+    setTimeout(() => authDialog.close(), 450);
+  } finally {
+    signInButton.disabled = false;
+  }
 }
 
 async function signUp(event) {
@@ -113,18 +131,21 @@ async function signUp(event) {
   if (problem) return setMessage(problem, "error");
   signUpButton.disabled = true;
   setMessage("계정을 만드는 중…");
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: { emailRedirectTo: `${location.origin}/` }
-  });
-  signUpButton.disabled = false;
-  if (error) return setMessage(translateError(error), "error");
-  if (data.session) {
-    setMessage("계정을 만들고 로그인했습니다.", "success");
-    setTimeout(() => authDialog.close(), 500);
-  } else {
-    setMessage("인증 메일을 보냈습니다. 메일함과 스팸함을 확인해 주세요.", "success");
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: `${location.origin}/` }
+    });
+    if (error) return setMessage(translateError(error), "error");
+    if (data.session) {
+      setMessage("계정을 만들고 로그인했습니다.", "success");
+      setTimeout(() => authDialog.close(), 500);
+    } else {
+      setMessage("인증 메일을 보냈습니다. 메일함과 스팸함을 확인해 주세요.", "success");
+    }
+  } finally {
+    signUpButton.disabled = false;
   }
 }
 
@@ -171,6 +192,12 @@ function restoreBackup(event) {
 function injectStyles() {
   const style = document.createElement("style");
   style.textContent = `
+    #authDialog{position:fixed;z-index:2147483647;max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;pointer-events:auto;touch-action:pan-y}
+    #authDialog[open],#authDialog[open] *{pointer-events:auto}
+    #authDialog .auth-dialog-body{position:relative;z-index:2}
+    #authDialog input{position:relative;z-index:3;display:block;min-height:52px;background:#fffdf8;color:#171714;opacity:1;-webkit-user-select:text;user-select:text;touch-action:manipulation}
+    #authDialog button{position:relative;z-index:3;touch-action:manipulation}
+    html.auth-dialog-open .utility-dock,html.auth-dialog-open .floating-learning-tools{pointer-events:none!important}
     .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border:1px solid var(--line);border-radius:999px}
     .auth-tabs button{border:0;border-radius:999px;padding:10px;background:transparent;color:var(--muted)}
     .auth-tabs button.active{background:var(--text);color:#fff}
@@ -182,13 +209,22 @@ function injectStyles() {
     .backup-tools{display:inline-flex;margin-left:14px}
     #syncStatus[data-state="connected"]::before{content:"";display:inline-block;width:7px;height:7px;margin-right:6px;border-radius:50%;background:#58a548}
     button:disabled{opacity:.55;cursor:wait}
-    @media(max-width:640px){.auth-utility-row{display:grid}.auth-utility-row span{text-align:left}.backup-tools{margin-left:8px}}
+    @media(max-width:640px){#authDialog{width:calc(100% - 20px);padding:30px 20px}.auth-dialog-body{min-width:0!important}.auth-utility-row{display:grid}.auth-utility-row span{text-align:left}.backup-tools{margin-left:8px}}
   `;
   document.head.appendChild(style);
 }
 
 buildEnhancements();
 injectStyles();
+authButton.addEventListener("click", prepareAuthDialog);
+authDialog.addEventListener("close", () => document.documentElement.classList.remove("auth-dialog-open"));
+authDialog.addEventListener("cancel", () => document.documentElement.classList.remove("auth-dialog-open"));
+authEmail.addEventListener("pointerdown", () => authEmail.focus());
+authPassword.addEventListener("pointerdown", () => authPassword.focus());
+authPassword.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  mode === "signup" ? signUp(event) : signIn(event);
+});
 signInButton.addEventListener("click", signIn, true);
 signUpButton.addEventListener("click", signUp, true);
 supabase.auth.onAuthStateChange(updateAccountState);
