@@ -12,6 +12,7 @@
   <link rel="icon" href="/icon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="styles.css" />
   <link rel="stylesheet" href="enhancements.css" />
+  <link rel="stylesheet" href="learning-dashboard.css" />
 </head>
 <body>
   <header class="site-header">
@@ -95,6 +96,8 @@
           <label for="writingInput">5문장 이상</label>
           <textarea id="writingInput" rows="10" placeholder="한국어로 바로 생각하며 써 보세요."></textarea>
           <div class="coach-box" id="coachResult" aria-live="polite">글을 쓰면 문장 길이와 연결 표현을 점검합니다.</div>
+          <div class="writing-score-actions"><span>문법 · 자연스러움 · 어휘 · 구성</span><button class="button ghost small" id="scoreWritingButton" type="button">AI 100점 평가</button></div>
+          <div class="writing-score-result" id="writingScore" aria-live="polite">저장 전후 언제든 AI 평가를 받을 수 있습니다.</div>
           <div class="panel-actions"><span id="writingCount">0자</span><button class="button dark small" id="saveWriting" type="button">저장</button></div>
         </article>
 
@@ -135,6 +138,20 @@
         <div class="metric-card"><span>완성한 글</span><strong id="writingMetric">0편</strong><p>생각을 한국어로 구조화</p></div>
         <div class="metric-card accent-card"><span>오늘의 완료율</span><strong id="todayMetric">0%</strong><div class="progress-track"><span id="todayMetricBar"></span></div><p>읽기 · 말하기 · 쓰기 · 복습</p></div>
       </div>
+      <div class="learning-tools">
+        <article class="learning-panel">
+          <p class="eyebrow">12-WEEK ACTIVITY</p>
+          <h3>학습 열력표</h3>
+          <p class="section-note">진할수록 그날 기록한 활동이 많습니다.</p>
+          <div id="learningHeatmap" class="heatmap" aria-label="최근 12주 학습 기록"></div>
+        </article>
+        <article class="learning-panel">
+          <p class="eyebrow">SPACED REPETITION</p>
+          <h3>자동 복습</h3>
+          <p class="section-note" id="reviewCount">0개 복습 예정</p>
+          <div id="reviewCard" class="review-card"></div>
+        </article>
+      </div>
     </section>
   </main>
 
@@ -164,5 +181,6 @@
   <script type="module" src="auth-enhancements.js"></script>
   <script type="module" src="ai-coach.js"></script>
   <script type="module" src="product-enhancements.js"></script>
+  <script type="module" src="learning-dashboard.js"></script>
 </body>
 </html>
