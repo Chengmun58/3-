@@ -4,7 +4,18 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3-flash-preview";
 
-const SYSTEM_PROMPT = `한국어 원어민 수준의 몰입형 일일 학습 콘텐츠를 JSON으로 생성하세요. 실제 한국 사회·문화·여행·언어 자료를 바탕으로 하되 원문을 복사하지 말고 학습용으로 새롭게 작성하세요. 출력 필드: title, theme, reading, expressions, mz_expressions, speaking_task, writing_task, review_task, difficulty, source_urls. expressions와 mz_expressions는 [{"expression":"","meaning":"","example":""}] 형식입니다.`;
+const SYSTEM_PROMPT = `한국어 원어민 수준의 몰입형 일일 학습 콘텐츠를 JSON으로 생성하세요. 중급 학습자가 번역식 표현을 줄이고 실제 한국인의 반응 속도와 문체를 익히도록 설계합니다. 실제 한국 사회·문화·여행·직장·일상 언어 자료를 바탕으로 하되 원문을 복사하지 말고 학습용으로 새롭게 작성하세요.
+
+반드시 다음 학습 구조를 반영하세요.
+1) 자연스러운 읽기 또는 짧은 실제 대화
+2) 교과서식 표현과 원어민 표현의 차이
+3) 오늘 바로 쓸 수 있는 MZ·인터넷 표현 3~5개와 사용 범위 주의
+4) 원어민 감정 부사·연결 패턴·문장 틀
+5) 말하기 반응 과제
+6) 5~9문장 글쓰기 과제
+7) 다음 세션 전 아주 작은 실천 과제
+
+정치·의료·법률·금융 등 고위험 주제는 피하고, MZ 표현은 과장하거나 유행이 지난 표현을 단정하지 마세요. 출력 필드: title, theme, reading, expressions, mz_expressions, speaking_task, writing_task, review_task, difficulty, source_urls. expressions와 mz_expressions는 [{"expression":"","meaning":"","example":""}] 형식입니다. reading 안에는 대화나 읽기 원문, 네이티브 표현 포인트, 문장 패턴이 자연스럽게 포함되어야 합니다.`;
 
 function stripFence(text) {
   return String(text || "").replace(/^```json\s*/i, "").replace(/```\s*$/i, "").trim();
@@ -38,7 +49,7 @@ async function generateWithGemini(prompt) {
         generationConfig: {
           responseMimeType: "application/json",
           temperature: 0.7,
-          maxOutputTokens: 2200
+          maxOutputTokens: 2600
         }
       })
     }
@@ -59,7 +70,7 @@ async function generateWithOpenAI(prompt) {
       model: "gpt-5-mini",
       instructions: SYSTEM_PROMPT,
       input: prompt,
-      max_output_tokens: 2200
+      max_output_tokens: 2600
     })
   });
   const data = await response.json();
@@ -115,7 +126,7 @@ export default async function handler(req, res) {
       .map((item) => `${item.name} | ${item.category} | ${item.url}`)
       .join("\n");
 
-    const prompt = `오늘 날짜: ${date}\n사용 가능한 출처:\n${sourceText}\n\n중급 학습자용으로 20분 분량의 일일 수업을 생성하세요. 정치·의료·법률·금융처럼 고위험 주제는 피하세요.`;
+    const prompt = `오늘 날짜: ${date}\n사용 가능한 출처:\n${sourceText}\n\n중급 학습자용으로 20분 분량의 일일 수업을 생성하세요. 주제는 일상 대화, 카톡, 직장, 여행, 인간관계, 현대 문화 중 하나를 선택하세요. 최소 한 개의 미묘한 감정 표현(예: 괜히, 은근히, 막상, 왠지, 생각보다)과 한 개의 원어민 문장 패턴을 포함하세요.`;
     const rawText = process.env.GEMINI_API_KEY
       ? await generateWithGemini(prompt)
       : await generateWithOpenAI(prompt);
