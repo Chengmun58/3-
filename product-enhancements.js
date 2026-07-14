@@ -1,3 +1,4 @@
+// Floating learning dock: compact by default, accessible when expanded.
 let deferredInstallPrompt = null;
 
 function toast(message) {
