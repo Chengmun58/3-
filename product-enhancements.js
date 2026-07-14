@@ -10,28 +10,63 @@ function toast(message) {
 }
 
 function addUtilityPanel() {
-  const panel = document.createElement('aside');
-  panel.className = 'learning-tools';
-  panel.setAttribute('aria-label', '학습 도구');
-  panel.innerHTML = `
-    <button id="installAppButton" type="button" hidden>앱 설치</button>
-    <button id="listenPhraseButton" type="button">표현 듣기</button>
-    <button id="shadowingButton" type="button">따라 말하기</button>
-    <button id="reminderButton" type="button">오늘 알림</button>
-    <p id="speechFeedback" aria-live="polite"></p>
+  const dock = document.createElement('aside');
+  dock.className = 'utility-dock';
+  dock.setAttribute('aria-label', '학습 도구');
+  dock.dataset.open = 'false';
+  dock.innerHTML = `
+    <button class="utility-dock-toggle" id="utilityDockToggle" type="button" aria-expanded="false" aria-controls="utilityDockMenu" aria-label="학습 도구 열기">
+      <span aria-hidden="true">＋</span><span class="utility-dock-toggle-label">학습 도구</span>
+    </button>
+    <div class="utility-dock-menu" id="utilityDockMenu" hidden>
+      <button id="installAppButton" type="button" hidden>앱 설치</button>
+      <button id="listenPhraseButton" type="button">표현 듣기</button>
+      <button id="shadowingButton" type="button">따라 말하기</button>
+      <button id="reminderButton" type="button">오늘 알림</button>
+      <p id="speechFeedback" aria-live="polite"></p>
+    </div>
   `;
-  document.body.appendChild(panel);
+  document.body.appendChild(dock);
 
-  const installButton = panel.querySelector('#installAppButton');
-  installButton.addEventListener('click', async () => {
+  const toggle = dock.querySelector('#utilityDockToggle');
+  const menu = dock.querySelector('#utilityDockMenu');
+
+  const setOpen = (open) => {
+    dock.dataset.open = String(open);
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? '학습 도구 닫기' : '학습 도구 열기');
+    toggle.querySelector('[aria-hidden="true"]').textContent = open ? '×' : '＋';
+    menu.hidden = !open;
+  };
+
+  toggle.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setOpen(dock.dataset.open !== 'true');
+  });
+
+  document.addEventListener('click', (event) => {
+    if (dock.dataset.open === 'true' && !dock.contains(event.target)) setOpen(false);
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setOpen(false);
+  });
+
+  const closeAfterAction = (handler) => async (event) => {
+    await handler(event);
+    setOpen(false);
+  };
+
+  const installButton = dock.querySelector('#installAppButton');
+  installButton.addEventListener('click', closeAfterAction(async () => {
     if (!deferredInstallPrompt) return;
     deferredInstallPrompt.prompt();
     await deferredInstallPrompt.userChoice;
     deferredInstallPrompt = null;
     installButton.hidden = true;
-  });
+  }));
 
-  panel.querySelector('#listenPhraseButton').addEventListener('click', () => {
+  dock.querySelector('#listenPhraseButton').addEventListener('click', closeAfterAction(() => {
     const text = document.getElementById('dailyPhrase')?.textContent?.trim();
     if (!text || !('speechSynthesis' in window)) return toast('이 기기에서는 음성 재생을 지원하지 않습니다.');
     speechSynthesis.cancel();
@@ -39,10 +74,10 @@ function addUtilityPanel() {
     utterance.lang = 'ko-KR';
     utterance.rate = 0.82;
     speechSynthesis.speak(utterance);
-  });
+  }));
 
-  panel.querySelector('#shadowingButton').addEventListener('click', startShadowing);
-  panel.querySelector('#reminderButton').addEventListener('click', enableReminder);
+  dock.querySelector('#shadowingButton').addEventListener('click', closeAfterAction(startShadowing));
+  dock.querySelector('#reminderButton').addEventListener('click', closeAfterAction(enableReminder));
 }
 
 function startShadowing() {
