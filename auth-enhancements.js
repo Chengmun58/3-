@@ -20,6 +20,7 @@ const authButton = document.getElementById("authButton");
 const syncStatus = document.getElementById("syncStatus");
 
 let mode = "signin";
+let authBusy = false;
 
 function translateError(error) {
   const raw = String(error?.message || error || "").toLowerCase();
@@ -28,6 +29,7 @@ function translateError(error) {
   if (raw.includes("user already registered")) return "이미 가입된 이메일입니다. 로그인해 주세요.";
   if (raw.includes("password should be")) return "비밀번호는 8자 이상 입력해 주세요.";
   if (raw.includes("rate limit")) return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+  if (raw.includes("timeout")) return "로그인 응답이 늦습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.";
   if (raw.includes("failed to fetch") || raw.includes("network")) return "네트워크 연결을 확인해 주세요.";
   return error?.message || "처리 중 오류가 발생했습니다.";
 }
@@ -44,8 +46,38 @@ function validate(email, password, requireStrong = false) {
   return "";
 }
 
-function prepareAuthDialog() {
-  document.querySelectorAll(".utility-dock.open, .floating-learning-tools.open").forEach((node) => node.classList.remove("open"));
+function withTimeout(promise, ms = 12000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => window.setTimeout(() => reject(new Error("timeout")), ms))
+  ]);
+}
+
+function resetAuthButtons() {
+  authBusy = false;
+  signInButton.disabled = false;
+  signUpButton.disabled = false;
+}
+
+function applyMode(nextMode) {
+  mode = nextMode;
+  const tabs = authDialog.querySelector(".auth-tabs");
+  tabs?.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item.dataset.authMode === mode));
+  signInButton.hidden = mode !== "signin";
+  signUpButton.hidden = mode !== "signup";
+  const passwordHint = authDialog.querySelector(".password-hint");
+  if (passwordHint) passwordHint.hidden = mode !== "signup";
+  const resetButton = document.getElementById("resetPasswordButton");
+  if (resetButton) resetButton.hidden = mode !== "signin";
+  setMessage(mode === "signin" ? "계정에 로그인해 주세요." : "가입 후 인증 메일을 확인해 주세요.");
+}
+
+async function prepareAuthDialog() {
+  document.querySelectorAll(".utility-dock, .floating-learning-tools").forEach((node) => {
+    node.classList.remove("open");
+    if (node.dataset) node.dataset.open = "false";
+  });
+  resetAuthButtons();
   authEmail.disabled = false;
   authEmail.readOnly = false;
   authPassword.disabled = false;
@@ -55,6 +87,13 @@ function prepareAuthDialog() {
   signInButton.style.pointerEvents = "auto";
   signUpButton.style.pointerEvents = "auto";
   document.documentElement.classList.add("auth-dialog-open");
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.user) {
+    setMessage("이미 로그인되어 있습니다.", "success");
+    await updateAccountState();
+  } else {
+    applyMode("signin");
+  }
   window.setTimeout(() => authEmail.focus({ preventScroll: true }), 80);
 }
 
@@ -87,65 +126,82 @@ function buildEnhancements() {
 
   tabs.addEventListener("click", (event) => {
     const button = event.target.closest("[data-auth-mode]");
-    if (!button) return;
-    mode = button.dataset.authMode;
-    tabs.querySelectorAll("button").forEach((item) => item.classList.toggle("active", item === button));
-    signInButton.hidden = mode !== "signin";
-    signUpButton.hidden = mode !== "signup";
-    passwordHint.hidden = mode !== "signup";
-    document.getElementById("resetPasswordButton").hidden = mode !== "signin";
-    setMessage(mode === "signin" ? "계정에 로그인해 주세요." : "가입 후 인증 메일을 확인해 주세요.");
+    if (!button || authBusy) return;
+    applyMode(button.dataset.authMode);
     authEmail.focus({ preventScroll: true });
   });
 
   document.getElementById("resetPasswordButton").addEventListener("click", resetPassword);
   document.getElementById("restoreData").addEventListener("click", () => document.getElementById("restoreFile").click());
   document.getElementById("restoreFile").addEventListener("change", restoreBackup);
+  applyMode("signin");
 }
 
 async function signIn(event) {
   event.preventDefault();
   event.stopImmediatePropagation();
+  if (authBusy) return;
+
+  const existing = await supabase.auth.getSession();
+  if (existing.data.session?.user) {
+    await updateAccountState();
+    setMessage("이미 로그인되어 있습니다.", "success");
+    window.setTimeout(() => authDialog.close(), 250);
+    return;
+  }
+
   const email = authEmail.value.trim();
   const password = authPassword.value;
   const problem = validate(email, password);
   if (problem) return setMessage(problem, "error");
+
+  authBusy = true;
   signInButton.disabled = true;
   setMessage("로그인 중…");
+
   try {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await withTimeout(supabase.auth.signInWithPassword({ email, password }));
     if (error) return setMessage(translateError(error), "error");
+    if (!data?.session?.user) return setMessage("로그인 세션을 만들지 못했습니다. 다시 시도해 주세요.", "error");
+    await updateAccountState();
     setMessage("로그인했습니다.", "success");
-    setTimeout(() => authDialog.close(), 450);
+    window.setTimeout(() => authDialog.close(), 250);
+  } catch (error) {
+    setMessage(translateError(error), "error");
   } finally {
-    signInButton.disabled = false;
+    resetAuthButtons();
   }
 }
 
 async function signUp(event) {
   event.preventDefault();
   event.stopImmediatePropagation();
+  if (authBusy) return;
   const email = authEmail.value.trim();
   const password = authPassword.value;
   const problem = validate(email, password, true);
   if (problem) return setMessage(problem, "error");
+  authBusy = true;
   signUpButton.disabled = true;
   setMessage("계정을 만드는 중…");
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await withTimeout(supabase.auth.signUp({
       email,
       password,
       options: { emailRedirectTo: `${location.origin}/` }
-    });
+    }));
     if (error) return setMessage(translateError(error), "error");
     if (data.session) {
+      await updateAccountState();
       setMessage("계정을 만들고 로그인했습니다.", "success");
-      setTimeout(() => authDialog.close(), 500);
+      window.setTimeout(() => authDialog.close(), 350);
     } else {
       setMessage("인증 메일을 보냈습니다. 메일함과 스팸함을 확인해 주세요.", "success");
     }
+  } catch (error) {
+    setMessage(translateError(error), "error");
   } finally {
-    signUpButton.disabled = false;
+    resetAuthButtons();
   }
 }
 
@@ -153,8 +209,12 @@ async function resetPassword() {
   const email = authEmail.value.trim();
   if (!email || !email.includes("@")) return setMessage("먼저 이메일 주소를 입력해 주세요.", "error");
   setMessage("재설정 메일을 보내는 중…");
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/` });
-  setMessage(error ? translateError(error) : "비밀번호 재설정 메일을 보냈습니다.", error ? "error" : "success");
+  try {
+    const { error } = await withTimeout(supabase.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/` }));
+    setMessage(error ? translateError(error) : "비밀번호 재설정 메일을 보냈습니다.", error ? "error" : "success");
+  } catch (error) {
+    setMessage(translateError(error), "error");
+  }
 }
 
 async function updateAccountState() {
@@ -162,13 +222,18 @@ async function updateAccountState() {
   const user = session?.user;
   const accountStatus = document.getElementById("accountStatus");
   if (!user) {
-    accountStatus.textContent = "로그인하면 모든 기기에서 기록을 볼 수 있어요.";
+    authButton.textContent = "로그인";
+    syncStatus.textContent = "로컬 저장";
+    syncStatus.dataset.state = "";
+    signOutButton.hidden = true;
+    if (accountStatus) accountStatus.textContent = "로그인하면 모든 기기에서 기록을 볼 수 있어요.";
     return;
   }
   authButton.textContent = user.email?.split("@")[0] || "계정";
   syncStatus.textContent = "클라우드 연결됨";
   syncStatus.dataset.state = "connected";
-  accountStatus.textContent = `${user.email} · ${user.email_confirmed_at ? "이메일 인증 완료" : "이메일 인증 대기"}`;
+  signOutButton.hidden = false;
+  if (accountStatus) accountStatus.textContent = `${user.email} · ${user.email_confirmed_at ? "이메일 인증 완료" : "이메일 인증 대기"}`;
 }
 
 function restoreBackup(event) {
@@ -197,6 +262,7 @@ function injectStyles() {
     #authDialog .auth-dialog-body{position:relative;z-index:2}
     #authDialog input{position:relative;z-index:3;display:block;min-height:52px;background:#fffdf8;color:#171714;opacity:1;-webkit-user-select:text;user-select:text;touch-action:manipulation}
     #authDialog button{position:relative;z-index:3;touch-action:manipulation}
+    #authDialog [hidden]{display:none!important}
     html.auth-dialog-open .utility-dock,html.auth-dialog-open .floating-learning-tools{pointer-events:none!important}
     .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:5px;border:1px solid var(--line);border-radius:999px}
     .auth-tabs button{border:0;border-radius:999px;padding:10px;background:transparent;color:var(--muted)}
@@ -227,5 +293,20 @@ authPassword.addEventListener("keydown", (event) => {
 });
 signInButton.addEventListener("click", signIn, true);
 signUpButton.addEventListener("click", signUp, true);
-supabase.auth.onAuthStateChange(updateAccountState);
+signOutButton.addEventListener("click", async (event) => {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  await supabase.auth.signOut();
+  resetAuthButtons();
+  await updateAccountState();
+  setMessage("로그아웃했습니다.", "success");
+});
+supabase.auth.onAuthStateChange((_event, session) => {
+  resetAuthButtons();
+  updateAccountState();
+  if (session?.user && authDialog.open) {
+    setMessage("로그인했습니다.", "success");
+    window.setTimeout(() => authDialog.close(), 250);
+  }
+});
 updateAccountState();
