@@ -1,6 +1,7 @@
 import './auth-hotfix.js';
 
 let deferredInstallPrompt = null;
+const PREF_KEY = 'maeil-korean-preferences-v1';
 
 function toast(message) {
   const node = document.getElementById('toast');
@@ -9,6 +10,29 @@ function toast(message) {
   node.classList.add('show');
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => node.classList.remove('show'), 2200);
+}
+
+function readPrefs() {
+  try {
+    return JSON.parse(localStorage.getItem(PREF_KEY)) || { daily_minutes: 20, focus: 'native-fluency', interface_language: 'ko', theme: 'system' };
+  } catch {
+    return { daily_minutes: 20, focus: 'native-fluency', interface_language: 'ko', theme: 'system' };
+  }
+}
+
+function toggleMobileTheme() {
+  const prefs = readPrefs();
+  const current = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  prefs.theme = current === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+  document.documentElement.dataset.theme = prefs.theme;
+}
+
+function toggleMobileLanguage() {
+  const prefs = readPrefs();
+  prefs.interface_language = prefs.interface_language === 'ko' ? 'zh' : prefs.interface_language === 'zh' ? 'en' : 'ko';
+  localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+  location.reload();
 }
 
 function addUtilityPanel() {
@@ -79,12 +103,8 @@ function addUtilityPanel() {
     setOpen(false);
   };
 
-  dock.querySelector('#mobileThemeButton').addEventListener('click', closeAfterAction(() => {
-    window.dispatchEvent(new CustomEvent('maeil-theme-toggle'));
-  }));
-  dock.querySelector('#mobileLangButton').addEventListener('click', closeAfterAction(() => {
-    window.dispatchEvent(new CustomEvent('maeil-lang-toggle'));
-  }));
+  dock.querySelector('#mobileThemeButton').addEventListener('click', closeAfterAction(toggleMobileTheme));
+  dock.querySelector('#mobileLangButton').addEventListener('click', toggleMobileLanguage);
 
   const installButton = dock.querySelector('#installAppButton');
   installButton.addEventListener('click', closeAfterAction(async () => {
