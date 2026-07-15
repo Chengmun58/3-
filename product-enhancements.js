@@ -1,3 +1,5 @@
+import './auth-hotfix.js';
+
 // Floating learning dock: compact by default, accessible when expanded.
 let deferredInstallPrompt = null;
 
