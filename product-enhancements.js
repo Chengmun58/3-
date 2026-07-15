@@ -1,6 +1,5 @@
 import './auth-hotfix.js';
 
-// Floating learning dock: compact by default, accessible when expanded.
 let deferredInstallPrompt = null;
 
 function toast(message) {
@@ -21,11 +20,18 @@ function addUtilityPanel() {
     <button class="utility-dock-toggle" id="utilityDockToggle" type="button" aria-expanded="false" aria-controls="utilityDockMenu" aria-label="학습 도구 열기">
       <span aria-hidden="true">＋</span><span class="utility-dock-toggle-label">학습 도구</span>
     </button>
-    <div class="utility-dock-menu" id="utilityDockMenu" hidden>
+    <div class="utility-dock-backdrop" id="utilityDockBackdrop" hidden></div>
+    <div class="utility-dock-menu" id="utilityDockMenu" hidden role="dialog" aria-modal="false" aria-label="학습 도구 메뉴">
+      <div class="utility-dock-handle" aria-hidden="true"></div>
+      <div class="utility-dock-mobile-controls">
+        <button id="mobileThemeButton" type="button">◐ 테마</button>
+        <button id="mobileLangButton" type="button">文 언어</button>
+      </div>
       <button id="installAppButton" type="button" hidden>앱 설치</button>
       <button id="listenPhraseButton" type="button">표현 듣기</button>
       <button id="shadowingButton" type="button">따라 말하기</button>
       <button id="reminderButton" type="button">오늘 알림</button>
+      <button id="closeUtilityDock" class="utility-dock-close" type="button">닫기</button>
       <p id="speechFeedback" aria-live="polite"></p>
     </div>
   `;
@@ -33,6 +39,7 @@ function addUtilityPanel() {
 
   const toggle = dock.querySelector('#utilityDockToggle');
   const menu = dock.querySelector('#utilityDockMenu');
+  const backdrop = dock.querySelector('#utilityDockBackdrop');
 
   const setOpen = (open) => {
     dock.dataset.open = String(open);
@@ -40,12 +47,17 @@ function addUtilityPanel() {
     toggle.setAttribute('aria-label', open ? '학습 도구 닫기' : '학습 도구 열기');
     toggle.querySelector('[aria-hidden="true"]').textContent = open ? '×' : '＋';
     menu.hidden = !open;
+    backdrop.hidden = !open;
+    document.documentElement.classList.toggle('utility-sheet-open', open);
   };
 
   toggle.addEventListener('click', (event) => {
     event.stopPropagation();
     setOpen(dock.dataset.open !== 'true');
   });
+
+  backdrop.addEventListener('click', () => setOpen(false));
+  dock.querySelector('#closeUtilityDock').addEventListener('click', () => setOpen(false));
 
   document.addEventListener('click', (event) => {
     if (dock.dataset.open === 'true' && !dock.contains(event.target)) setOpen(false);
@@ -55,10 +67,24 @@ function addUtilityPanel() {
     if (event.key === 'Escape') setOpen(false);
   });
 
+  let touchStartY = 0;
+  menu.addEventListener('touchstart', event => { touchStartY = event.touches[0]?.clientY || 0; }, { passive: true });
+  menu.addEventListener('touchend', event => {
+    const endY = event.changedTouches[0]?.clientY || 0;
+    if (endY - touchStartY > 70) setOpen(false);
+  }, { passive: true });
+
   const closeAfterAction = (handler) => async (event) => {
     await handler(event);
     setOpen(false);
   };
+
+  dock.querySelector('#mobileThemeButton').addEventListener('click', closeAfterAction(() => {
+    window.dispatchEvent(new CustomEvent('maeil-theme-toggle'));
+  }));
+  dock.querySelector('#mobileLangButton').addEventListener('click', closeAfterAction(() => {
+    window.dispatchEvent(new CustomEvent('maeil-lang-toggle'));
+  }));
 
   const installButton = dock.querySelector('#installAppButton');
   installButton.addEventListener('click', closeAfterAction(async () => {
